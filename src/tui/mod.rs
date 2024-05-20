@@ -13,6 +13,10 @@ use self::screens::github::{GithubAuthMode, GithubScreen, GithubScreenState};
 mod details;
 mod screens;
 
+pub enum KeyAction {
+    Exit,
+}
+
 pub struct App {
     terminal: Terminal<CrosstermBackend<Stdout>>,
     config: Option<Config>,
@@ -56,23 +60,15 @@ impl App {
 
             if event::poll(std::time::Duration::from_millis(16))? {
                 if let event::Event::Key(key) = event::read()? {
-                    if key.kind != KeyEventKind::Press {
-                        continue;
-                    }
-
-                    match key.code {
-                        KeyCode::Char('q') => break,
-                        KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
-                            break
-                        }
-                        KeyCode::Down | KeyCode::Up | KeyCode::Char('j') | KeyCode::Char('k') => {
-                            github_screen_state.selected_mode =
-                                match github_screen_state.selected_mode {
-                                    GithubAuthMode::Browser => GithubAuthMode::Token,
-                                    GithubAuthMode::Token => GithubAuthMode::Browser,
+                    if key.kind == KeyEventKind::Press {
+                        match GithubScreen::on_key_press(key, &mut github_screen_state) {
+                            Some(action) => match action {
+                                KeyAction::Exit => {
+                                    break;
                                 }
+                            },
+                            None => {}
                         }
-                        _ => {}
                     }
                 }
             }

@@ -1,4 +1,3 @@
-use color_eyre::owo_colors::OwoColorize;
 use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -30,7 +29,7 @@ impl DetailsObject {
     }
 }
 
-pub fn test(
+pub fn render_details(
     objects: impl IntoIterator<Item = DetailsObject>,
     area: Rect,
     buf: &mut Buffer,
@@ -49,7 +48,10 @@ pub fn test(
 
     let mut inner_rects = Vec::<Option<Rect>>::new();
 
-    for (object, layout) in objects.into_iter().zip(layout.into_iter()) {
+    let objects_count = objects.len();
+    for (i, (object, layout)) in objects.into_iter().zip(layout.into_iter()).enumerate() {
+        let is_last_rendered_object = (i + 1) == objects_count;
+
         let color = object
             .opened
             .then(|| Color::White)
@@ -58,11 +60,17 @@ pub fn test(
         let object_block = Block::default()
             .title(Title::from(object.title.fg(color)).alignment(Alignment::Center))
             .title(
-                Title::from(object.opened.then(|| "▶ ").unwrap_or_else(|| "▼ "))
+                Title::from(object.opened.then(|| "▼ ").unwrap_or_else(|| "▶ "))
                     .alignment(Alignment::Left),
             )
             .padding(Padding::new(1, 1, 1, 1))
-            .borders(Borders::TOP)
+            .borders(
+                Borders::TOP
+                    | object.opened.then(|| Borders::RIGHT).unwrap_or_default()
+                    | is_last_rendered_object
+                        .then(|| Borders::BOTTOM)
+                        .unwrap_or_default(),
+            )
             .border_style(Style::default().fg(color));
 
         let inner_rect = object_block.inner(layout.clone());

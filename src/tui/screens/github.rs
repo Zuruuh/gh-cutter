@@ -1,11 +1,16 @@
+use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
-    layout::{Alignment, Rect},
+    layout::{Alignment, Constraint, Direction, Layout, Rect},
     prelude::Buffer,
-    style::{Color, Style, Stylize},
-    widgets::{block::Title, Block, Borders, Padding, Paragraph, StatefulWidget, Widget},
+    style::{Style, Stylize},
+    text::{Line, Span},
+    widgets::{block::Title, Block, Padding, Paragraph, StatefulWidget, Widget},
 };
 
-use crate::tui::details::{test, DetailsObject};
+use crate::tui::{
+    details::{render_details, DetailsObject},
+    KeyAction,
+};
 
 #[derive(Default)]
 pub struct GithubScreen;
@@ -41,30 +46,90 @@ impl GithubAuthMode {
     where
         Self: Sized,
     {
-        let container = Block::default();
+        let [subtitle_rect, _, button_rect] = Layout::new(
+            Direction::Vertical,
+            [
+                Constraint::Length(1),
+                Constraint::Fill(1),
+                Constraint::Length(1),
+            ],
+        )
+        .split(area)[..] else {
+            unreachable!()
+        };
 
-        let container_rect = container.inner(area);
-        container.render(area, buf);
+        let [_, button_rect, _] = Layout::new(
+            Direction::Horizontal,
+            [
+                Constraint::Fill(1),
+                Constraint::Length(10),
+                Constraint::Fill(1),
+            ],
+        )
+        .split(button_rect)[..] else {
+            unreachable!()
+        };
 
-        Paragraph::new("Yes browser auth yes")
-            .bg(Color::Red)
-            .underlined()
-            .render(container_rect, buf);
+        Paragraph::new("Login from browser")
+            .bold()
+            .centered()
+            .render(subtitle_rect, buf);
+
+        create_select_button().render(button_rect, buf);
     }
 
     fn render_token(self, area: Rect, buf: &mut Buffer)
     where
         Self: Sized,
     {
-        Paragraph::new("Yes token auth yes")
-            .bg(Color::Blue)
-            .underlined()
-            .block(
-                Block::default()
-                    .borders(Borders::ALL)
-                    .border_style(Style::default().fg(Color::Red)),
-            )
-            .render(area, buf);
+        let [subtitle_rect, _, instructions_rect, link_rect, _, button_rect] = Layout::new(
+            Direction::Vertical,
+            [
+                Constraint::Length(1),
+                Constraint::Length(1),
+                Constraint::Length(1),
+                Constraint::Length(1),
+                Constraint::Fill(1),
+                Constraint::Length(1),
+            ],
+        )
+        .split(area)[..] else {
+            unreachable!()
+        };
+
+        let [_, button_rect, _] = Layout::new(
+            Direction::Horizontal,
+            [
+                Constraint::Fill(1),
+                Constraint::Length(10),
+                Constraint::Fill(1),
+            ],
+        )
+        .split(button_rect)[..] else {
+            unreachable!()
+        };
+
+        Paragraph::new("Login with personal access token")
+            .bold()
+            .centered()
+            .render(subtitle_rect, buf);
+
+        Paragraph::new(Line::from(vec![
+            Span::styled("Token will need the ", Style::new().dark_gray()),
+            Span::styled("repo", Style::new().bold().underlined()),
+            Span::styled(" scope", Style::new().dark_gray()),
+        ]))
+        .centered()
+        .render(instructions_rect, buf);
+
+        Paragraph::new(Span::from(
+            r"https://github.com/settings/tokens/new?scopes=repo&description=GH%20Cutter",
+        ))
+        .centered()
+        .dark_gray()
+        .render(link_rect, buf);
+
+        create_select_button().render(button_rect, buf)
     }
 }
 
@@ -79,11 +144,11 @@ impl StatefulWidget for GithubScreen {
         let container_rect = container.inner(area);
         container.render(area, buf);
 
-        let details = test(
+        let details = render_details(
             [
-                DetailsObject::new("Browser auth", 10)
+                DetailsObject::new("Browser auth", 8)
                     .opened(matches!(state.selected_mode, GithubAuthMode::Browser)),
-                DetailsObject::new("Token auth", 20)
+                DetailsObject::new("Token auth", 10)
                     .opened(matches!(state.selected_mode, GithubAuthMode::Token)),
             ],
             container_rect,
@@ -101,22 +166,44 @@ impl StatefulWidget for GithubScreen {
     }
 }
 
-// fn centered_rect(r: Rect, percent_x: u16, percent_y: u16) -> Rect {
-//     let popup_layout = Layout::default()
-//         .direction(Direction::Vertical)
-//         .constraints([
-//             Constraint::Percentage((100 - percent_y) / 2),
-//             Constraint::Percentage(percent_y),
-//             Constraint::Percentage((100 - percent_y) / 2),
-//         ])
-//         .split(r);
-//
-//     Layout::default()
-//         .direction(Direction::Horizontal)
-//         .constraints([
-//             Constraint::Percentage((100 - percent_x) / 2),
-//             Constraint::Percentage(percent_x),
-//             Constraint::Percentage((100 - percent_x) / 2),
-//         ])
-//         .split(popup_layout[1])[1]
-// }
+impl GithubScreen {
+    pub fn on_key_press(key: KeyEvent, state: &mut GithubScreenState) -> Option<KeyAction> {
+        Some(match key.code {
+            KeyCode::Char('q') => KeyAction::Exit,
+            KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => KeyAction::Exit,
+            KeyCode::Down | KeyCode::Up | KeyCode::Char('j') | KeyCode::Char('k') => {
+                if state.modal_opened {
+                    return None;
+                }
+
+                state.selected_mode = match state.selected_mode {
+                    GithubAuthMode::Browser => GithubAuthMode::Token,
+                    GithubAuthMode::Token => GithubAuthMode::Browser,
+                };
+
+                return None;
+            }
+            KeyCode::Esc => {
+                if state.modal_opened {
+                    state.modal_opened = false;
+
+                    return None;
+                }
+
+                KeyAction::Exit
+            }
+            KeyCode::Enter => {
+                if !state.modal_opened {
+                    state.modal_opened = true;
+                }
+
+                return None;
+            }
+            _ => return None,
+        })
+    }
+}
+
+fn create_select_button<'a>() -> Paragraph<'a> {
+    Paragraph::new("Select").centered().on_blue().white()
+}
