@@ -8,9 +8,10 @@ use std::io::{stdout, Result, Stdout};
 
 use crate::config::Config;
 
-use self::github::{GithubAuthMode, GithubScreen, GithubScreenState};
+use self::screens::github::{GithubAuthMode, GithubScreen, GithubScreenState};
 
-mod github;
+mod details;
+mod screens;
 
 pub struct App {
     terminal: Terminal<CrosstermBackend<Stdout>>,
@@ -33,7 +34,7 @@ impl App {
     }
 
     pub fn new(config: Option<Config>) -> Result<Self> {
-        Self::init();
+        Self::init()?;
         let mut terminal = Terminal::new(CrosstermBackend::new(stdout()))?;
         terminal.clear()?;
 
@@ -64,10 +65,7 @@ impl App {
                         KeyCode::Char('c') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                             break
                         }
-                        KeyCode::Left
-                        | KeyCode::Right
-                        | KeyCode::Char('h')
-                        | KeyCode::Char('l') => {
+                        KeyCode::Down | KeyCode::Up | KeyCode::Char('j') | KeyCode::Char('k') => {
                             github_screen_state.selected_mode =
                                 match github_screen_state.selected_mode {
                                     GithubAuthMode::Browser => GithubAuthMode::Token,
