@@ -13,5 +13,6 @@ ratatui = "0.26.2"
 serde = { version = "1.0.202", features = ["derive"] }
 tokio = { version = "1.37.0", features = ["full"] }
 toml = { version = "0.8.13" }
+tui-input = "0.8.0"
 warp = { version = "0.3.7", default-features = false }
 xdg = "2.5.2"

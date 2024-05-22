@@ -8,13 +8,14 @@ use std::io::{stdout, Result, Stdout};
 
 use crate::config::Config;
 
-use self::screens::github::{GithubAuthMode, GithubScreen, GithubScreenState};
+use self::screens::github::{GithubScreen, GithubScreenState};
 
 mod details;
 mod screens;
 
 pub enum KeyAction {
-    Exit,
+    Bubble,
+    Submit,
 }
 
 pub struct App {
@@ -60,15 +61,24 @@ impl App {
 
             if event::poll(std::time::Duration::from_millis(16))? {
                 if let event::Event::Key(key) = event::read()? {
-                    if key.kind == KeyEventKind::Press {
-                        match GithubScreen::on_key_press(key, &mut github_screen_state) {
-                            Some(action) => match action {
-                                KeyAction::Exit => {
-                                    break;
+                    if key.kind != KeyEventKind::Press {
+                        continue;
+                    }
+
+                    if let Some(action) = GithubScreen::on_key_press(key, &mut github_screen_state)
+                    {
+                        match action {
+                            KeyAction::Submit => {}
+                            KeyAction::Bubble => match key.code {
+                                KeyCode::Esc | KeyCode::Char('q') => break,
+                                KeyCode::Char('c')
+                                    if key.modifiers.contains(KeyModifiers::CONTROL) =>
+                                {
+                                    break
                                 }
+                                _ => {}
                             },
-                            None => {}
-                        }
+                        };
                     }
                 }
             }
