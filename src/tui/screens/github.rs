@@ -38,54 +38,6 @@ impl Widget for GithubAuthMode {
     where
         Self: Sized,
     {
-        match self {
-            GithubAuthMode::Browser => self.render_browser(area, buf),
-            GithubAuthMode::Token => self.render_token(area, buf),
-        }
-    }
-}
-
-impl GithubAuthMode {
-    fn render_browser(self, area: Rect, buf: &mut Buffer)
-    where
-        Self: Sized,
-    {
-        let [subtitle_rect, _, button_rect] = Layout::new(
-            Direction::Vertical,
-            [
-                Constraint::Length(1),
-                Constraint::Fill(1),
-                Constraint::Length(1),
-            ],
-        )
-        .split(area)[..] else {
-            unreachable!()
-        };
-
-        let [_, button_rect, _] = Layout::new(
-            Direction::Horizontal,
-            [
-                Constraint::Fill(1),
-                Constraint::Length(10),
-                Constraint::Fill(1),
-            ],
-        )
-        .split(button_rect)[..] else {
-            unreachable!()
-        };
-
-        Paragraph::new("Login from browser")
-            .bold()
-            .centered()
-            .render(subtitle_rect, buf);
-
-        create_select_button().render(button_rect, buf);
-    }
-
-    fn render_token(self, area: Rect, buf: &mut Buffer)
-    where
-        Self: Sized,
-    {
         let [subtitle_rect, _, instructions_rect, link_rect, _, button_rect] = Layout::new(
             Direction::Vertical,
             [
@@ -113,28 +65,45 @@ impl GithubAuthMode {
             unreachable!()
         };
 
-        Paragraph::new("Login with personal access token")
+        Paragraph::new(self.title())
             .bold()
             .centered()
             .render(subtitle_rect, buf);
 
-        Paragraph::new(Line::from(vec![
-            Span::styled("Token will need the ", Style::new().dark_gray()),
-            Span::styled("repo", Style::new().bold().underlined()),
-            Span::styled(" scope", Style::new().dark_gray()),
-        ]))
-        .centered()
-        .render(instructions_rect, buf);
+        if matches!(self, Self::Token) {
+            Paragraph::new(Line::from(vec![
+                Span::styled("Token will need the ", Style::new().dark_gray()),
+                Span::styled("repo", Style::new().bold().underlined()),
+                Span::styled(" scope", Style::new().dark_gray()),
+            ]))
+            .centered()
+            .render(instructions_rect, buf);
+        }
 
-        Paragraph::new(
-            Span::from(r"https://github.com/settings/tokens/new?scopes=repo&description=GHCutter")
-                .underlined(),
-        )
-        .centered()
-        .dark_gray()
-        .render(link_rect, buf);
+        Paragraph::new(Span::from(self.url()).underlined())
+            .centered()
+            .dark_gray()
+            .render(link_rect, buf);
 
         create_select_button().render(button_rect, buf);
+    }
+}
+
+impl GithubAuthMode {
+    const fn title(&self) -> &'static str {
+        match self {
+            Self::Token => "Login with personal access token",
+            Self::Browser => "Login from browser",
+        }
+    }
+
+    const fn url(&self) -> &'static str {
+        match self {
+            GithubAuthMode::Browser => "https://github.com/login/device",
+            GithubAuthMode::Token => {
+                "https://github.com/settings/tokens/new?scopes=repo&description=GHCutter"
+            }
+        }
     }
 }
 
@@ -165,7 +134,7 @@ impl StatefulWidget for GithubScreen {
 
         let details = render_details(
             [
-                DetailsObject::new("Browser auth", 8)
+                DetailsObject::new("Browser auth", 10)
                     .opened(matches!(state.selected_mode, GithubAuthMode::Browser)),
                 DetailsObject::new("Token auth", 10)
                     .opened(matches!(state.selected_mode, GithubAuthMode::Token)),
