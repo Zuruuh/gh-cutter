@@ -1,4 +1,3 @@
-use color_eyre::owo_colors::OwoColorize;
 use crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::{
     layout::{Alignment, Constraint, Direction, Layout, Rect},
@@ -6,7 +5,8 @@ use ratatui::{
     style::{Style, Stylize},
     text::{Line, Span},
     widgets::{
-        block::Title, Block, BorderType, Borders, Clear, Padding, Paragraph, StatefulWidget, Widget,
+        block::{Position, Title},
+        Block, BorderType, Borders, Clear, Padding, Paragraph, StatefulWidget, Widget,
     },
 };
 use tui_input::{backend::crossterm::EventHandler, Input};
@@ -16,9 +16,6 @@ use crate::tui::{
     KeyAction,
 };
 
-#[derive(Default)]
-pub struct GithubScreen;
-
 #[derive(Default, PartialEq, Eq)]
 pub enum GithubAuthMode {
     #[default]
@@ -27,9 +24,42 @@ pub enum GithubAuthMode {
 }
 
 #[derive(Default)]
+enum ModalState {
+    #[default]
+    Closed,
+    Opened {
+        // TODO: find a better name?
+        element_under_cursor: ModalElement,
+        element_focus_state: FocusState,
+    },
+}
+
+impl ModalState {
+    pub fn is_opened(&self) -> bool {
+        !matches!(self, Self::Closed)
+    }
+}
+
+#[derive(Default)]
+enum ModalElement {
+    #[default]
+    Input,
+    SubmitButton,
+}
+
+#[derive(Default)]
+enum FocusState {
+    #[default]
+    Hovered,
+    Focused,
+}
+
+#[derive(Default)]
+pub struct GithubScreen;
+#[derive(Default)]
 pub struct GithubScreenState {
     pub selected_mode: GithubAuthMode,
-    pub modal_opened: bool,
+    pub modal_state: ModalState,
     pub input: Input,
 }
 
@@ -154,7 +184,7 @@ impl StatefulWidget for GithubScreen {
 
         // Form modal
 
-        if !state.modal_opened {
+        if !state.modal_state.is_opened() {
             return;
         }
 
@@ -180,16 +210,36 @@ impl StatefulWidget for GithubScreen {
 
         Clear::default().render(modal_rect, buf);
 
-        let modal = Block::new()
+        let mut modal = Block::new()
             .borders(Borders::ALL)
             .border_style(Style::new().white())
             .border_type(BorderType::Rounded)
             .padding(Padding::new(1, 1, 1, 1))
-            .title_top("Paste your token")
-            .title_bottom(
-                Line::from(vec![Span::from("ESC").bold(), Span::from(" to exit")])
-                    .alignment(Alignment::Left),
+            .title(
+                Title::from("Paste your token")
+                    .alignment(Alignment::Left)
+                    .position(Position::Top),
             );
+
+        // change if input is focused
+        if true {
+            modal = modal
+                .title(
+                    create_action_title("ESC", "to exit")
+                        .alignment(Alignment::Left)
+                        .position(Position::Bottom),
+                )
+                .title(
+                    create_action_title("o", "to open link")
+                        .alignment(Alignment::Center)
+                        .position(Position::Bottom),
+                )
+                .title(
+                    create_action_title("c", "to copy link")
+                        .alignment(Alignment::Right)
+                        .position(Position::Bottom),
+                );
+        }
 
         modal.render(modal_rect, buf);
 
@@ -246,26 +296,8 @@ impl StatefulWidget for GithubScreen {
 
 impl GithubScreen {
     pub fn on_key_press(key: KeyEvent, state: &mut GithubScreenState) -> Option<KeyAction> {
-        if state.modal_opened {
-            match key.code {
-                KeyCode::Esc => {
-                    state.modal_opened = false;
-
-                    None
-                }
-
-                KeyCode::Enter => {
-                    // Submit
-                    Some(KeyAction::Submit)
-                }
-
-                _ => match state.input.handle_event(&Event::Key(key)) {
-                    Some(_) => None,
-                    None => Some(KeyAction::Submit),
-                },
-            }
-        } else {
-            match key.code {
+        match &state.modal_state {
+            ModalState::Closed => match key.code {
                 KeyCode::Down | KeyCode::Up | KeyCode::Char('j') | KeyCode::Char('k') => {
                     state.selected_mode = match state.selected_mode {
                         GithubAuthMode::Browser => GithubAuthMode::Token,
@@ -275,14 +307,53 @@ impl GithubScreen {
                     None
                 }
                 KeyCode::Enter => {
-                    state.modal_opened = true;
+                    state.modal_state = ModalState::Opened {
+                        element_under_cursor: ModalElement::default(),
+                        element_focus_state: FocusState::Hovered,
+                    };
 
                     None
                 }
                 _ => Some(KeyAction::Bubble),
-            }
+            },
+            ModalState::Opened {
+                element_under_cursor,
+                element_focus_state,
+            } => match element_under_cursor {
+                ModalElement::Input => todo!(),
+                ModalElement::SubmitButton => todo!(),
+            },
         }
+
+        // if state.modal_state.is_opened() {
+        //     match key.code {
+        //         KeyCode::Esc => {
+        //             state.modal_state = ModalState::Closed;
+        //
+        //             None
+        //         }
+        //
+        //         KeyCode::Enter => {
+        //             // Submit
+        //             Some(KeyAction::Submit)
+        //         }
+        //
+        //         _ => match state.input.handle_event(&Event::Key(key)) {
+        //             Some(_) => None,
+        //             None => Some(KeyAction::Submit),
+        //         },
+        //     }
+        // } else {
+        //     match key.code
+        // }
     }
+}
+
+fn create_action_title<'a>(key: &'a str, action: &'a str) -> Title<'a> {
+    Title::from(vec![
+        Span::from(key).bold(),
+        Span::from(format!(" {action}")),
+    ])
 }
 
 fn create_select_button<'a>() -> Paragraph<'a> {

@@ -1,4 +1,6 @@
-use color_eyre::eyre::{self, Context, WrapErr};
+#![allow(unused_variables, private_interfaces, dead_code)]
+
+use color_eyre::eyre::{self, Context};
 use tui::App;
 
 mod config;
